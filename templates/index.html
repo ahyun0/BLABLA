@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BLABLA — 글로벌 슬랭 AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     ① SELECT SCREEN — 말투 선택
+══════════════════════════════════════════════ -->
+<div class="screen active" id="screen-select">
+
+  <div class="logo-wrap">
+    <div class="logo-icon">🗣️</div>
+    <div class="logo-title">BLABLA</div>
+    <div class="logo-sub">글로벌 슬랭 AI · 현지인처럼 말하기</div>
+  </div>
+
+  <p class="select-heading">어떤 말투로 대화할까요?</p>
+
+  <div class="style-grid">
+    <div class="style-card" data-style="japan_gyaru">
+      <span class="flag">🇯🇵</span>
+      <span class="lang-name">일본 갸루</span>
+      <span class="lang-desc">밝고 귀여운 갸루체</span>
+      <span class="card-dot"></span>
+    </div>
+
+    <div class="style-card" data-style="korea_mz">
+      <span class="flag">🇰🇷</span>
+      <span class="lang-name">한국 MZ</span>
+      <span class="lang-desc">인터넷 밈 말투</span>
+      <span class="card-dot"></span>
+    </div>
+
+    <div class="style-card" data-style="us_casual">
+      <span class="flag">🇺🇸</span>
+      <span class="lang-name">미국 캐주얼</span>
+      <span class="lang-desc">Gen Z 슬랭</span>
+      <span class="card-dot"></span>
+    </div>
+
+    <div class="style-card" data-style="uk_casual">
+      <span class="flag">🇬🇧</span>
+      <span class="lang-name">영국 슬랭</span>
+      <span class="lang-desc">영국식 캐주얼</span>
+      <span class="card-dot"></span>
+    </div>
+
+    <div class="style-card full-width" data-style="au_casual">
+      <span class="flag">🇦🇺</span>
+      <span class="lang-name">호주 슬랭</span>
+      <span class="lang-desc">여유로운 호주 말투</span>
+      <span class="card-dot"></span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     ② MODE SCREEN — 기능 선택
+══════════════════════════════════════════════ -->
+<div class="screen" id="screen-mode" style="position:relative;">
+
+  <button class="back-btn" id="back-to-select">← 뒤로</button>
+
+  <div class="mode-badge">
+    <span class="flag" id="mode-flag">🇯🇵</span>
+    <div>
+      <div class="badge-name" id="mode-name">일본 갸루</div>
+      <div class="badge-desc" id="mode-desc">밝고 귀여운 갸루체</div>
+    </div>
+  </div>
+
+  <p class="mode-heading">무엇을 해볼까요?</p>
+
+  <div class="mode-buttons">
+    <button class="mode-btn" id="btn-chat">
+      <span class="mode-icon">💬</span>
+      <span>
+        <span class="mode-label">회화하기</span>
+        <span class="mode-hint">AI와 슬랭으로 자유롭게 대화해요</span>
+      </span>
+    </button>
+
+    <button class="mode-btn" id="btn-translate">
+      <span class="mode-icon">🔄</span>
+      <span>
+        <span class="mode-label">번역하기</span>
+        <span class="mode-hint">내 문장을 해당 슬랭으로 바꿔요</span>
+      </span>
+    </button>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     ③ CHAT SCREEN — 회화
+══════════════════════════════════════════════ -->
+<div class="screen" id="screen-chat">
+
+  <div class="page-header">
+    <button class="back-icon" id="back-from-chat">←</button>
+    <span class="header-flag" id="chat-header-flag">🇯🇵</span>
+    <div class="header-info">
+      <div class="header-name" id="chat-header-name">일본 갸루</div>
+      <div class="header-mode">회화 모드</div>
+    </div>
+    <button class="switch-mode-btn" id="chat-switch-btn">번역하기</button>
+  </div>
+
+  <div class="chat-messages" id="chat-messages">
+    <div class="typing-indicator" id="typing-indicator">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <button class="mic-btn" id="mic-btn" title="음성 입력">🎤</button>
+    <textarea
+      class="chat-text-input"
+      id="chat-input"
+      rows="1"
+      placeholder="메시지를 입력하거나 🎤 를 눌러 말하세요…"
+    ></textarea>
+    <button class="send-btn" id="send-btn" title="전송">➤</button>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     ④ TRANSLATE SCREEN — 번역
+══════════════════════════════════════════════ -->
+<div class="screen" id="screen-translate">
+
+  <div class="page-header">
+    <button class="back-icon" id="back-from-translate">←</button>
+    <span class="header-flag" id="translate-header-flag">🇯🇵</span>
+    <div class="header-info">
+      <div class="header-name" id="translate-header-name">일본 갸루</div>
+      <div class="header-mode">번역 모드</div>
+    </div>
+    <button class="switch-mode-btn" id="translate-switch-btn">회화하기</button>
+  </div>
+
+  <div class="translate-body">
+
+    <div>
+      <div class="translate-section-label">입력</div>
+      <textarea
+        class="translate-input"
+        id="translate-input"
+        placeholder="번역할 문장을 입력하세요…&#10;(⌘+Enter 또는 버튼으로 변환)"
+      ></textarea>
+    </div>
+
+    <button class="translate-btn" id="translate-btn">변환하기 →</button>
+
+    <div>
+      <div class="translate-section-label">출력</div>
+      <div class="translate-result-box">
+        <div class="translate-result-text empty" id="translate-result">
+          여기에 변환 결과가 표시됩니다.
+        </div>
+        <div class="translate-actions">
+          <button class="translate-action-btn" id="translate-listen-btn">🔊 듣기</button>
+          <button class="translate-action-btn" id="translate-copy-btn">📋 복사</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
