@@ -6,113 +6,124 @@
   <title>BLABLA — 글로벌 슬랭 AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════
-     ① SELECT SCREEN — 말투 선택
-══════════════════════════════════════════════ -->
+<!-- ① SELECT SCREEN -->
 <div class="screen active" id="screen-select">
 
+  <div class="select-bg-orb orb1"></div>
+  <div class="select-bg-orb orb2"></div>
+
+  <!-- 우상단 내 프로필 버튼 -->
+  <button class="floating-profile-btn" id="open-mypage-select">
+    <div class="floating-avatar" id="select-user-avatar-wrap">
+      <img id="select-user-avatar-img" class="avatar-photo hidden" alt="프로필">
+      <span class="avatar-fallback">👤</span>
+    </div>
+  </button>
+
   <div class="logo-wrap">
-    <div class="logo-icon">🗣️</div>
+    <div class="logo-badge">🗣️</div>
     <div class="logo-title">BLABLA</div>
-    <div class="logo-sub">글로벌 슬랭 AI · 현지인처럼 말하기</div>
+    <div class="logo-sub">현지인처럼 말하는 글로벌 슬랭 AI</div>
   </div>
 
   <p class="select-heading">어떤 말투로 대화할까요?</p>
 
   <div class="style-grid">
+
     <div class="style-card" data-style="japan_gyaru">
-      <span class="flag">🇯🇵</span>
+      <div class="card-glow" style="--glow: var(--c-japan)"></div>
+      <div class="card-avatar-wrap av-japan">
+        <img class="card-avatar-img" src="/static/images/japan_gyaru.png" alt="일본 갸루">
+        <span class="card-av-label">JP</span>
+      </div>
       <span class="lang-name">일본 갸루</span>
       <span class="lang-desc">밝고 귀여운 갸루체</span>
       <span class="card-dot"></span>
     </div>
 
     <div class="style-card" data-style="korea_mz">
-      <span class="flag">🇰🇷</span>
+      <div class="card-glow" style="--glow: var(--c-korea)"></div>
+      <div class="card-avatar-wrap av-korea">
+        <img class="card-avatar-img" src="/static/images/korea_mz.png" alt="한국 MZ">
+        <span class="card-av-label">MZ</span>
+      </div>
       <span class="lang-name">한국 MZ</span>
       <span class="lang-desc">인터넷 밈 말투</span>
       <span class="card-dot"></span>
     </div>
 
     <div class="style-card" data-style="us_casual">
-      <span class="flag">🇺🇸</span>
+      <div class="card-glow" style="--glow: var(--c-us)"></div>
+      <div class="card-avatar-wrap av-us">
+        <img class="card-avatar-img" src="/static/images/us_casual.png" alt="미국 캐주얼">
+        <span class="card-av-label">US</span>
+      </div>
       <span class="lang-name">미국 캐주얼</span>
       <span class="lang-desc">Gen Z 슬랭</span>
       <span class="card-dot"></span>
     </div>
 
     <div class="style-card" data-style="uk_casual">
-      <span class="flag">🇬🇧</span>
+      <div class="card-glow" style="--glow: var(--c-uk)"></div>
+      <div class="card-avatar-wrap av-uk">
+        <img class="card-avatar-img" src="/static/images/uk_casual.png" alt="영국 슬랭">
+        <span class="card-av-label">UK</span>
+      </div>
       <span class="lang-name">영국 슬랭</span>
       <span class="lang-desc">영국식 캐주얼</span>
       <span class="card-dot"></span>
     </div>
 
     <div class="style-card full-width" data-style="au_casual">
-      <span class="flag">🇦🇺</span>
+      <div class="card-glow" style="--glow: var(--c-au)"></div>
+      <div class="card-avatar-wrap av-au">
+        <img class="card-avatar-img" src="/static/images/au_casual.png" alt="호주 슬랭">
+        <span class="card-av-label">AU</span>
+      </div>
       <span class="lang-name">호주 슬랭</span>
       <span class="lang-desc">여유로운 호주 말투</span>
       <span class="card-dot"></span>
     </div>
+
   </div>
 
 </div>
 
-<!-- ═══════════════════════════════════════════
-     ② MODE SCREEN — 기능 선택
-══════════════════════════════════════════════ -->
-<div class="screen" id="screen-mode" style="position:relative;">
-
-  <button class="back-btn" id="back-to-select">← 뒤로</button>
-
-  <div class="mode-badge">
-    <span class="flag" id="mode-flag">🇯🇵</span>
-    <div>
-      <div class="badge-name" id="mode-name">일본 갸루</div>
-      <div class="badge-desc" id="mode-desc">밝고 귀여운 갸루체</div>
-    </div>
-  </div>
-
-  <p class="mode-heading">무엇을 해볼까요?</p>
-
-  <div class="mode-buttons">
-    <button class="mode-btn" id="btn-chat">
-      <span class="mode-icon">💬</span>
-      <span>
-        <span class="mode-label">회화하기</span>
-        <span class="mode-hint">AI와 슬랭으로 자유롭게 대화해요</span>
-      </span>
-    </button>
-
-    <button class="mode-btn" id="btn-translate">
-      <span class="mode-icon">🔄</span>
-      <span>
-        <span class="mode-label">번역하기</span>
-        <span class="mode-hint">내 문장을 해당 슬랭으로 바꿔요</span>
-      </span>
-    </button>
-  </div>
-
-</div>
-
-<!-- ═══════════════════════════════════════════
-     ③ CHAT SCREEN — 회화
-══════════════════════════════════════════════ -->
+<!-- ② CHAT SCREEN -->
 <div class="screen" id="screen-chat">
 
   <div class="page-header">
     <button class="back-icon" id="back-from-chat">←</button>
-    <span class="header-flag" id="chat-header-flag">🇯🇵</span>
+    <div class="header-ai-avatar" id="chat-header-ai-avatar-wrap">
+      <img id="chat-header-ai-img" class="avatar-photo hidden" alt="">
+      <span class="avatar-fallback" id="chat-header-ai-label">?</span>
+    </div>
     <div class="header-info">
       <div class="header-name" id="chat-header-name">일본 갸루</div>
-      <div class="header-mode">회화 모드</div>
+      <div class="header-mode">슬랭 AI · 온라인</div>
     </div>
-    <button class="switch-mode-btn" id="chat-switch-btn">번역하기</button>
+    <button class="header-user-btn" id="open-mypage-chat">
+      <div class="header-user-avatar" id="chat-header-user-wrap">
+        <img id="chat-header-user-img" class="avatar-photo hidden" alt="나">
+        <span class="avatar-fallback">👤</span>
+      </div>
+    </button>
+  </div>
+
+  <!-- 모국어 선택 탭 -->
+  <div class="lang-selector-bar">
+    <span class="lang-selector-label">해석 언어</span>
+    <div class="lang-tabs">
+      <button class="lang-tab active" data-lang="ko">한국어</button>
+      <button class="lang-tab" data-lang="ja">日本語</button>
+      <button class="lang-tab" data-lang="zh">中文</button>
+      <button class="lang-tab" data-lang="en">English</button>
+    </div>
   </div>
 
   <div class="chat-messages" id="chat-messages">
@@ -136,52 +147,37 @@
 
 </div>
 
-<!-- ═══════════════════════════════════════════
-     ④ TRANSLATE SCREEN — 번역
-══════════════════════════════════════════════ -->
-<div class="screen" id="screen-translate">
+<!-- ③ MY PAGE SCREEN -->
+<div class="screen" id="screen-mypage">
 
   <div class="page-header">
-    <button class="back-icon" id="back-from-translate">←</button>
-    <span class="header-flag" id="translate-header-flag">🇯🇵</span>
+    <button class="back-icon" id="back-from-mypage">←</button>
     <div class="header-info">
-      <div class="header-name" id="translate-header-name">일본 갸루</div>
-      <div class="header-mode">번역 모드</div>
+      <div class="header-name">마이페이지</div>
+      <div class="header-mode">프로필 설정</div>
     </div>
-    <button class="switch-mode-btn" id="translate-switch-btn">회화하기</button>
   </div>
 
-  <div class="translate-body">
-
-    <div>
-      <div class="translate-section-label">입력</div>
-      <textarea
-        class="translate-input"
-        id="translate-input"
-        placeholder="번역할 문장을 입력하세요…&#10;(⌘+Enter 또는 버튼으로 변환)"
-      ></textarea>
-    </div>
-
-    <button class="translate-btn" id="translate-btn">변환하기 →</button>
-
-    <div>
-      <div class="translate-section-label">출력</div>
-      <div class="translate-result-box">
-        <div class="translate-result-text empty" id="translate-result">
-          여기에 변환 결과가 표시됩니다.
-        </div>
-        <div class="translate-actions">
-          <button class="translate-action-btn" id="translate-listen-btn">🔊 듣기</button>
-          <button class="translate-action-btn" id="translate-copy-btn">📋 복사</button>
-        </div>
+  <div class="mypage-body">
+    <div class="mypage-avatar-section">
+      <div class="mypage-avatar-wrap">
+        <img id="mypage-avatar-img" class="avatar-photo hidden" alt="프로필">
+        <span class="avatar-fallback mypage-av-fallback">👤</span>
+        <label class="avatar-edit-overlay" for="avatar-file-input">
+          <span class="camera-icon">📷</span>
+        </label>
+        <input type="file" id="avatar-file-input" accept="image/*">
       </div>
+      <p class="mypage-hint">사진을 눌러 프로필 사진 변경</p>
     </div>
 
+    <div class="mypage-actions">
+      <button class="mypage-delete-btn" id="delete-avatar-btn">프로필 사진 삭제</button>
+    </div>
   </div>
 
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script src="/static/js/app.js"></script>
