@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BLABLA — 글로벌 슬랭 AI</title>
+  <title>BLABLA — 글로벌 AI 회화</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -28,68 +28,80 @@
   <div class="logo-wrap">
     <div class="logo-badge">🗣️</div>
     <div class="logo-title">BLABLA</div>
-    <div class="logo-sub">현지인처럼 말하는 글로벌 슬랭 AI</div>
+    <div class="logo-sub">현지인처럼 말하는 글로벌 AI 회화</div>
   </div>
 
-  <p class="select-heading">어떤 말투로 대화할까요?</p>
+  <!-- Step 1: 언어 선택 -->
+  <div class="select-step" id="step-language">
+    <p class="select-heading">어떤 언어로 대화할까요?</p>
+    <div class="lang-grid">
 
-  <div class="style-grid">
-
-    <div class="style-card" data-style="japan_gyaru">
-      <div class="card-glow" style="--glow: var(--c-japan)"></div>
-      <div class="card-avatar-wrap av-japan">
-        <img class="card-avatar-img" src="/static/images/japan_gyaru.png" alt="일본 갸루">
-        <span class="card-av-label">JP</span>
+      <div class="lang-card" data-lang="ko">
+        <span class="lang-flag">🇰🇷</span>
+        <span class="lang-card-name">한국어</span>
+        <span class="lang-dot"></span>
       </div>
-      <span class="lang-name">일본 갸루</span>
-      <span class="lang-desc">밝고 귀여운 갸루체</span>
-      <span class="card-dot"></span>
-    </div>
 
-    <div class="style-card" data-style="korea_mz">
-      <div class="card-glow" style="--glow: var(--c-korea)"></div>
-      <div class="card-avatar-wrap av-korea">
-        <img class="card-avatar-img" src="/static/images/korea_mz.png" alt="한국 MZ">
-        <span class="card-av-label">MZ</span>
+      <div class="lang-card" data-lang="ja">
+        <span class="lang-flag">🇯🇵</span>
+        <span class="lang-card-name">日本語</span>
+        <span class="lang-dot"></span>
       </div>
-      <span class="lang-name">한국 MZ</span>
-      <span class="lang-desc">인터넷 밈 말투</span>
-      <span class="card-dot"></span>
-    </div>
 
-    <div class="style-card" data-style="us_casual">
-      <div class="card-glow" style="--glow: var(--c-us)"></div>
-      <div class="card-avatar-wrap av-us">
-        <img class="card-avatar-img" src="/static/images/us_casual.png" alt="미국 캐주얼">
-        <span class="card-av-label">US</span>
+      <div class="lang-card" data-lang="en_us">
+        <span class="lang-flag">🇺🇸</span>
+        <span class="lang-card-name">English US</span>
+        <span class="lang-dot"></span>
       </div>
-      <span class="lang-name">미국 캐주얼</span>
-      <span class="lang-desc">Gen Z 슬랭</span>
-      <span class="card-dot"></span>
-    </div>
 
-    <div class="style-card" data-style="uk_casual">
-      <div class="card-glow" style="--glow: var(--c-uk)"></div>
-      <div class="card-avatar-wrap av-uk">
-        <img class="card-avatar-img" src="/static/images/uk_casual.png" alt="영국 슬랭">
-        <span class="card-av-label">UK</span>
+      <div class="lang-card" data-lang="zh">
+        <span class="lang-flag">🇨🇳</span>
+        <span class="lang-card-name">中文</span>
+        <span class="lang-dot"></span>
       </div>
-      <span class="lang-name">영국 슬랭</span>
-      <span class="lang-desc">영국식 캐주얼</span>
-      <span class="card-dot"></span>
-    </div>
 
-    <div class="style-card full-width" data-style="au_casual">
-      <div class="card-glow" style="--glow: var(--c-au)"></div>
-      <div class="card-avatar-wrap av-au">
-        <img class="card-avatar-img" src="/static/images/au_casual.png" alt="호주 슬랭">
-        <span class="card-av-label">AU</span>
+    </div>
+  </div>
+
+  <!-- Step 2: 카테고리 선택 -->
+  <div class="select-step hidden" id="step-category">
+
+    <button class="back-step-btn" id="back-to-lang">← 언어 변경</button>
+    <p class="select-heading" id="step2-heading">어떤 상황에서 연습할까요?</p>
+    <div class="category-grid">
+
+      <div class="category-card" data-category="friend">
+        <span class="cat-icon">🗣️</span>
+        <span class="cat-name">친구</span>
+        <span class="cat-persona" id="persona-friend">—</span>
+        <span class="cat-desc">슬랭 · 캐주얼</span>
       </div>
-      <span class="lang-name">호주 슬랭</span>
-      <span class="lang-desc">여유로운 호주 말투</span>
-      <span class="card-dot"></span>
-    </div>
 
+      <div class="category-card" data-category="business">
+        <span class="cat-icon">💼</span>
+        <span class="cat-name">비즈니스</span>
+        <span class="cat-persona" id="persona-business">—</span>
+        <span class="cat-desc">직장 · 학교</span>
+      </div>
+
+      <div class="category-card" data-category="travel">
+        <span class="cat-icon">✈️</span>
+        <span class="cat-name">여행</span>
+        <span class="cat-persona" id="persona-travel">—</span>
+        <span class="cat-desc">실용 여행 표현</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Step 3: 미션 선택 -->
+  <div class="select-step hidden" id="step-mission">
+    <button class="back-step-btn" id="back-to-category">← 상황 변경</button>
+    <p class="select-heading">오늘의 미션을 선택하세요</p>
+    <div class="mission-grid" id="mission-grid">
+      <!-- JS로 동적 생성 -->
+    </div>
+    <button class="skip-mission-btn" id="skip-mission">미션 없이 자유 대화 →</button>
   </div>
 
 </div>
@@ -104,8 +116,8 @@
       <span class="avatar-fallback" id="chat-header-ai-label">?</span>
     </div>
     <div class="header-info">
-      <div class="header-name" id="chat-header-name">일본 갸루</div>
-      <div class="header-mode">슬랭 AI · 온라인</div>
+      <div class="header-name" id="chat-header-name">—</div>
+      <div class="header-mode" id="chat-header-mode">AI · 온라인</div>
     </div>
     <button class="header-user-btn" id="open-mypage-chat">
       <div class="header-user-avatar" id="chat-header-user-wrap">
