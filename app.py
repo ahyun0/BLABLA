@@ -2,10 +2,11 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import openai
 import whisper
+import numpy as np
+import subprocess
 import os
 from dotenv import load_dotenv
 import base64
-import tempfile
 import time
 import requests
 import json
@@ -26,6 +27,24 @@ def get_whisper_model():
     return _whisper_model
 
 get_whisper_model()  # 서버 시작 시 즉시 로드
+
+
+def _audio_to_array(data: bytes) -> np.ndarray:
+    """WebM/OGG 바이트를 디스크 없이 FFmpeg 파이프로 float32 16kHz 배열로 변환."""
+    proc = subprocess.Popen(
+        [
+            'ffmpeg', '-nostdin', '-loglevel', 'error',
+            '-i', 'pipe:0',
+            '-ac', '1', '-ar', '16000', '-f', 'f32le', 'pipe:1',
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    out, err = proc.communicate(input=data)
+    if proc.returncode != 0:
+        raise RuntimeError(f'ffmpeg 변환 실패: {err.decode()}')
+    return np.frombuffer(out, dtype=np.float32).copy()
 
 _openai_key = os.getenv('OPENAI_API_KEY')
 openai_client = openai.OpenAI(api_key=_openai_key) if _openai_key else None
@@ -436,23 +455,24 @@ def index():
 def transcribe():
     if 'audio' not in request.files:
         return jsonify({'error': 'No audio file provided'}), 400
-    audio_file = request.files['audio']
-    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
-        audio_file.save(tmp.name)
-        tmp_path = tmp.name
-    # 프론트에서 스타일 언어 힌트를 보내면 사용, 없으면 auto-detect
-    lang_hint = request.form.get('lang') or None
+    audio_bytes = request.files['audio'].read()
+    lang_hint   = request.form.get('lang') or None
     try:
-        result = get_whisper_model().transcribe(tmp_path, language=lang_hint)
+        audio_arr = _audio_to_array(audio_bytes)
+        result = get_whisper_model().transcribe(
+            audio_arr,
+            language=lang_hint,
+            beam_size=1,              # greedy 디코딩 — beam_size=5 대비 최대 5× 빠름
+            temperature=0,            # 확률 샘플링 없이 결정론적 디코딩
+            condition_on_previous_text=False,  # 세그먼트 간 컨텍스트 전파 생략
+            fp16=False,               # CPU에서는 fp16 미지원, 명시 비활성화
+        )
         return jsonify({
             'text':     result['text'].strip(),
-            'language': result.get('language', 'ko'),
+            'language': result.get('language', lang_hint or 'ko'),
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
 
 
 @app.route('/api/interpret', methods=['POST'])
@@ -721,4 +741,6 @@ def tts():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # threaded=True: 전사 중에도 다른 요청 처리 가능
+    # use_reloader=False: 리로더가 Whisper 모델을 2번 로드하는 것 방지
+    app.run(debug=True, port=5001, threaded=True, use_reloader=False)

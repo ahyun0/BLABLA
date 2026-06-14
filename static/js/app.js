@@ -1034,20 +1034,24 @@ async function startRecording() {
 
   // 청크 버퍼
   // headerChunk: 첫 청크(WebM 헤더 포함) — 매 phrase blob에 앞에 붙여야 Whisper가 디코딩 가능
-  let headerChunk   = null;
-  let phraseChunks  = [];
-  let silenceStart  = null;
-  let phraseFlushed = false; // 현재 침묵 구간에서 이미 전송했는지
-  let sending       = false;
-  let ended         = false;
-  let rafId         = null;
+  let headerChunk      = null;
+  let phraseChunks     = [];
+  let silenceStart     = null;
+  let phraseFlushed    = false; // 현재 침묵 구간에서 이미 전송했는지
+  let sending          = false;
+  let ended            = false;
+  let rafId            = null;
+  let lastFlushPromise = Promise.resolve();
 
   const recorder = new MediaRecorder(stream);
   state.recorder = recorder;
 
   recorder.ondataavailable = e => {
     if (e.data.size === 0) return;
-    if (!headerChunk) headerChunk = e.data; // 첫 청크를 헤더로 보존
+    if (!headerChunk) {
+      headerChunk = e.data; // 첫 청크는 헤더로만 보존 (phraseChunks에는 추가 안 함)
+      return;               // ← 없으면 blob에 첫 500ms가 두 번 들어가는 버그 발생
+    }
     phraseChunks.push(e.data);
   };
 
@@ -1061,8 +1065,10 @@ async function startRecording() {
     sending = false;
   };
 
-  // 녹음 완전 종료 (5초 침묵 or ⏹ 클릭)
-  const end = async () => {
+  // 녹음 완전 종료 (침묵 자동 종료 or ⏹ 클릭)
+  // flushOnStop=true: 수동 종료 시 남은 청크도 전사
+  // flushOnStop=false: 침묵 자동 종료 시 이미 flush됐으므로 재전송 생략
+  const end = async (flushOnStop = false) => {
     if (ended) return;
     ended = true;
     state.stopFn = null;
@@ -1073,7 +1079,8 @@ async function startRecording() {
         audioCtx.close().catch(() => {});
         stream.getTracks().forEach(t => t.stop());
 
-        await flushPhrase(); // 남은 문장 처리
+        await lastFlushPromise; // 진행 중인 전사 완료 대기
+        if (flushOnStop) await flushPhrase(); // 수동 종료 시만 남은 청크 처리
 
         state.recording = false;
         micBtn.classList.remove('recording');
@@ -1102,7 +1109,7 @@ async function startRecording() {
       // 1초 침묵 → 문장 경계: 한 번만 전송
       if (elapsed >= PHRASE_SILENCE_MS && !phraseFlushed && !sending) {
         phraseFlushed = true;
-        flushPhrase();
+        lastFlushPromise = flushPhrase();
       }
     } else {
       silenceStart  = null;
@@ -1113,7 +1120,7 @@ async function startRecording() {
 
   // 녹음 시작
   state.recording = true;
-  state.stopFn    = end;
+  state.stopFn    = () => end(true); // 수동 종료: 남은 청크도 flush
   micBtn.classList.add('recording');
   micBtn.textContent = '⏹';
   chatInput.value = '';
@@ -1124,10 +1131,23 @@ async function startRecording() {
   rafId = requestAnimationFrame(checkSilence);
 }
 
+// 스타일 키 → Whisper 언어 힌트 (연습 언어 기준)
+function styleToWhisperLang(style) {
+  if (!style) return null;
+  if (style.startsWith('ko'))    return 'ko';
+  if (style.startsWith('ja'))    return 'ja';
+  if (style.startsWith('en_us')) return 'en';
+  if (style.startsWith('zh'))    return 'zh';
+  return null;
+}
+
 // 문장 blob → Whisper → textarea에 누적 append
 async function appendPhraseTranscript(blob) {
   const form = new FormData();
   form.append('audio', blob, 'recording.webm');
+  // 언어 힌트를 보내면 Whisper가 언어 자동 감지를 건너뜀 → 1~2s 단축
+  const langHint = styleToWhisperLang(state.style);
+  if (langHint) form.append('lang', langHint);
   try {
     const res  = await fetch('/api/transcribe', { method: 'POST', body: form });
     const data = await res.json();
