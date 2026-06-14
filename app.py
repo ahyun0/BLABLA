@@ -48,6 +48,14 @@ LANG_NAMES = {
     'ar': 'العربية',
 }
 
+# 스타일 언어 키 → 타겟 언어명 (연습 중인 언어)
+TARGET_LANG_NAMES = {
+    'ko':    '한국어',
+    'ja':    '日本語',
+    'en_us': 'English',
+    'zh':    '中文',
+}
+
 # 카테고리별 📖 레이블
 CATEGORY_VOCAB_LABEL = {
     'friend':   'slang/casual expressions',
@@ -192,6 +200,9 @@ def _build_chat_prompt(style, ui_lang, mission_prompt=''):
     category = style.split('_')[-1]
     vocab_label = CATEGORY_VOCAB_LABEL.get(category, 'expressions')
     coaching_examples = COACHING_EXAMPLES.get(ui_lang, COACHING_EXAMPLES['en'])
+    # 타겟 언어 (연습 중인 언어) — style에서 추출
+    lang_key = '_'.join(style.split('_')[:-1])  # ko / ja / en_us / zh
+    target_lang = TARGET_LANG_NAMES.get(lang_key, 'English')
 
     scenario_block = ''
     if mission_prompt:
@@ -199,28 +210,38 @@ def _build_chat_prompt(style, ui_lang, mission_prompt=''):
 
     return base + scenario_block + f"""
 
-MANDATORY FORMAT — append to EVERY reply without exception:
+RESPONSE RULES:
+- Stay in character at all times.
+- NEVER correct or mention the user's language in "reply" — all feedback goes ONLY in "coaching".
+- Always end "reply" with a question to keep the conversation going.
 
-💬 <translate your reply above into {lang_name}, verbatim sentence by sentence>
+You MUST return a valid JSON object with EXACTLY these four fields (no markdown fences, no extra text):
+{{
+  "reply": "<your character's natural response — end with a question>",
+  "translation": "<translate YOUR reply into {lang_name}, sentence by sentence>",
+  "vocab": [
+    {{"term": "<word/phrase from your reply>", "meaning": "<meaning in {lang_name}>"}},
+    {{"term": "<word/phrase from your reply>", "meaning": "<meaning in {lang_name}>"}}
+  ],
+  "coaching": "<feedback on the USER's {target_lang} — explanation text in {lang_name}, quoted expressions in {target_lang} — e.g. {coaching_examples}>"
+}}
 
-📖
-<actual term from your reply> = <its meaning written ONLY in {lang_name}>
-<actual term from your reply> = <its meaning written ONLY in {lang_name}>
-(up to 4 {vocab_label}; use real words/phrases from your reply, not placeholders; meanings MUST be in {lang_name})
-
-🎯 <Focus ONLY on whether the user's words and expressions are natural in this context.
-- If a word or phrase sounds unnatural or awkward: quote it, then suggest a more natural alternative in 「」.
-- If the user's expression is already natural: briefly praise that specific word or phrase.
-- NEVER give feedback on: capitalization, punctuation, spelling, formatting, or grammar mechanics.
-- NEVER comment on the situation, topic, or scenario — only the naturalness of the actual words used.
-- Write the explanation in {lang_name}. Quoted expressions stay in the target language.
-- Use phrases like {coaching_examples}. Keep it to 1-2 sentences max.>
-
-Rules:
-- All four sections (reply, 💬, 📖, 🎯) required every time
-- 🎯 is about the USER's specific word/expression choices only — must be last
-- 📖 meanings MUST be in {lang_name} only
-- 🎯 explanation text MUST be in {lang_name} — only the quoted example expressions may be in the target language"""
+Field rules (ALL fields are mandatory — never omit any):
+- "reply": in-character, natural, end with a question, NEVER mention user language errors
+- "translation": translate YOUR reply into {lang_name} only — NOT any previous AI message
+- "vocab": 1–4 {vocab_label} from your reply; meanings MUST be in {lang_name}; NEVER an empty array
+- "coaching" — about the USER'S message ONLY (strictly enforced):
+  • Look at the user's LAST message only — ignore AI responses entirely
+  • Pick ONE specific word or phrase the user actually typed and comment on its naturalness
+  • If natural: praise exactly that word/phrase
+  • If unnatural: suggest a better {target_lang} alternative for that specific word/phrase
+  • NEVER comment on grammar structure, topic, or content — only word/phrase naturalness
+  • NEVER mention capitalization or punctuation
+  • Language rules:
+    - All explanatory text MUST be in {lang_name} — ZERO {target_lang} words in explanation sentences
+    - User's original word/phrase → quote exactly as typed, wrapped in 「」 (keep in {target_lang})
+    - Better alternative → write in {target_lang}, wrapped in 「」
+    - Structure: [explanation in {lang_name}] 「[user's word in {target_lang}]」 [explanation in {lang_name}] 「[better word in {target_lang}]」"""
 
 
 # 각 스타일별 Typecast 보이스 설정
@@ -293,16 +314,19 @@ def _typecast_tts(text, cfg):
     return resp.content
 
 
-def _gpt_chat(messages, temperature=0.7, max_tokens=300, retries=3):
+def _gpt_chat(messages, temperature=0.7, max_tokens=300, retries=3, json_mode=False):
     last_err = None
     for attempt in range(retries):
         try:
-            resp = openai_client.chat.completions.create(
+            kwargs = dict(
                 model=GPT_MODEL,
                 messages=messages,
                 temperature=temperature,
                 max_completion_tokens=max_tokens,
             )
+            if json_mode:
+                kwargs['response_format'] = {'type': 'json_object'}
+            resp = openai_client.chat.completions.create(**kwargs)
             return resp.choices[0].message.content
         except Exception as e:
             last_err = e
@@ -315,40 +339,82 @@ def _gpt_chat(messages, temperature=0.7, max_tokens=300, retries=3):
 
 
 def _parse_ai_response(raw):
+    """JSON 형식 파싱 (chat endpoint). 실패 시 이모지 형식 폴백."""
     raw = raw.strip()
+    # markdown 코드펜스 제거
+    clean = raw
+    if clean.startswith('```'):
+        clean = clean[clean.find('\n')+1:] if '\n' in clean else clean[3:]
+        clean = clean.removesuffix('```').strip()
+    try:
+        data = json.loads(clean)
+        slang          = str(data.get('reply', '')).strip() or raw
+        interpretation = str(data.get('translation', '')).strip()
+        coaching       = str(data.get('coaching', '')).strip()
+        vocab_raw      = data.get('vocab', [])
+        vocab = [
+            {'term': str(v.get('term', '')).strip(), 'meaning': str(v.get('meaning', '')).strip()}
+            for v in (vocab_raw if isinstance(vocab_raw, list) else [])
+            if v.get('term') and v.get('meaning')
+        ]
+        return slang, interpretation, vocab, coaching
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return _parse_ai_response_legacy(raw)
+
+
+_VOCAB_SEPS = [' = ', ' → ', ' — ', ' – ', ' : ', ': ', ' - ']
+
+def _split_vocab_line(line):
+    line = line.lstrip('-•*·· ').strip()
+    for sep in _VOCAB_SEPS:
+        if sep in line:
+            term, meaning = line.split(sep, 1)
+            return term.strip(' "\'「」'), meaning.strip(' "\'「」')
+    return None, None
+
+def _is_label_line(line):
+    SKIP = ('표현 설명', '표현설명', 'vocab', 'expressions', 'phrases', '词汇', '表現', '단어')
+    low = line.lower()
+    return any(low.startswith(s.lower()) for s in SKIP) or len(line) < 2
+
+def _parse_ai_response_legacy(raw):
+    """이모지 형식 파싱 폴백 (/api/interpret 등에서 사용)."""
     slang, interpretation, vocab, coaching = raw, '', [], ''
-
-    if '💬' in raw:
-        parts = raw.split('💬', 1)
-        slang = parts[0].strip()
-        rest  = parts[1].strip()
-
-        if '📖' in rest:
-            sub = rest.split('📖', 1)
-            interpretation = sub[0].strip()
-            vocab_block = sub[1].strip()
-
-            # 📖 블록에서 🎯 코칭 분리
-            if '🎯' in vocab_block:
-                vocab_part, coaching_part = vocab_block.split('🎯', 1)
-                coaching = coaching_part.strip()
-            else:
-                vocab_part = vocab_block
-
-            for line in vocab_part.strip().splitlines():
-                line = line.strip()
-                if '=' in line:
-                    term, meaning = line.split('=', 1)
-                    vocab.append({'term': term.strip(), 'meaning': meaning.strip()})
+    if '💬' not in raw:
+        return slang, interpretation, vocab, coaching
+    parts = raw.split('💬', 1)
+    slang = parts[0].strip()
+    rest  = parts[1].strip()
+    if '📖' in rest:
+        sub = rest.split('📖', 1)
+        interpretation = sub[0].strip()
+        vocab_block    = sub[1].strip()
+        if '🎯' in vocab_block:
+            vocab_part, coaching_part = vocab_block.split('🎯', 1)
+            coaching = coaching_part.strip()
         else:
-            # 📖 없이 🎯가 있는 경우
-            if '🎯' in rest:
-                interp_part, coaching_part = rest.split('🎯', 1)
-                interpretation = interp_part.strip()
-                coaching = coaching_part.strip()
+            vocab_part = vocab_block
+        prev_term = None
+        for line in vocab_part.strip().splitlines():
+            line = line.strip()
+            if not line or _is_label_line(line):
+                continue
+            term, meaning = _split_vocab_line(line)
+            if term and meaning:
+                vocab.append({'term': term, 'meaning': meaning})
+                prev_term = None
+            elif prev_term is not None:
+                vocab.append({'term': prev_term, 'meaning': line.strip(' "\'「」')})
+                prev_term = None
             else:
-                interpretation = rest
-
+                prev_term = line.strip(' "\'「」')
+    else:
+        if '🎯' in rest:
+            interp_part, coaching_part = rest.split('🎯', 1)
+            interpretation = interp_part.strip()
+            coaching = coaching_part.strip()
+        else:
+            interpretation = rest
     return slang, interpretation, vocab, coaching
 
 
@@ -435,36 +501,25 @@ def message():
     history = data.get('history', [])
     ui_lang = data.get('ui_lang', 'ko')
 
-    prompts = PROMPTS.get(style, PROMPTS[DEFAULT_STYLE])
-
-    # 1단계: 사용자 입력을 해당 스타일로 변환
-    try:
-        raw_slang = _gpt_chat(
-            messages=[{'role': 'user', 'content': f"{prompts['translate']}\n\n---\n\n{text}"}],
-            temperature=0.7,
-            max_tokens=200,
-        )
-        user_slang = _clean_slang(raw_slang)
-    except Exception:
-        user_slang = text
-
-    # 2단계: 원본 입력을 AI에게 전달 (번역 버전 X)
     mission_prompt = data.get('mission_prompt', '')
     system = _build_chat_prompt(style, ui_lang, mission_prompt)
+
+    # 히스토리를 최근 8개(4회 대화)로 제한 — 컨텍스트 과부하 방지
+    trimmed_history = history[-8:] if len(history) > 8 else history
+
     messages = [{'role': 'system', 'content': system}]
-    for m in history:
+    for m in trimmed_history:
         role = 'assistant' if m['role'] == 'assistant' else 'user'
         messages.append({'role': role, 'content': m['content']})
-    messages.append({'role': 'user', 'content': text})  # 원문 그대로 전달
+    messages.append({'role': 'user', 'content': text})
 
     try:
-        ai_text = _gpt_chat(messages, temperature=0.85, max_tokens=1200)
+        ai_text = _gpt_chat(messages, temperature=0.85, max_tokens=1000, json_mode=True)
         ai_slang, ai_interpretation, ai_vocab, ai_coaching = _parse_ai_response(ai_text)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
     return jsonify({
-        'user_slang':        user_slang,
         'ai_slang':          ai_slang,
         'ai_interpretation': ai_interpretation,
         'ai_vocab':          ai_vocab,
@@ -494,7 +549,7 @@ IMPORTANT: This is the START of the conversation.
     ]
 
     try:
-        ai_text = _gpt_chat(messages, temperature=0.9, max_tokens=600)
+        ai_text = _gpt_chat(messages, temperature=0.9, max_tokens=800, json_mode=True)
         ai_slang, ai_interpretation, ai_vocab, _ = _parse_ai_response(ai_text)
         return jsonify({
             'ai_slang':          ai_slang,

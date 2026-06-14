@@ -784,21 +784,7 @@ function addUserBubble(original, slang) {
   originalEl.className = 'bubble-original';
   originalEl.textContent = original;
 
-  const divider = document.createElement('div');
-  divider.className = 'bubble-divider';
-
-  const slangEl = document.createElement('div');
-  slangEl.className = 'bubble-slang';
-  if (slang) {
-    slangEl.textContent = slang;
-  } else {
-    slangEl.textContent = '변환 중...';
-    slangEl.classList.add('loading');
-  }
-
   bubble.appendChild(originalEl);
-  bubble.appendChild(divider);
-  bubble.appendChild(slangEl);
   body.appendChild(label);
   body.appendChild(bubble);
 
@@ -807,7 +793,7 @@ function addUserBubble(original, slang) {
 
   chatMessages.insertBefore(wrap, typingEl);
   scrollToBottom();
-  return { wrap, slangEl };
+  return { wrap };
 }
 
 // 사용자 말풍선 아래에 코칭 팁 추가
@@ -961,7 +947,7 @@ async function sendChatMessage() {
   chatInput.value = '';
   autoResizeTextarea(chatInput);
 
-  const { wrap: userWrap, slangEl } = addUserBubble(text, null);
+  const { wrap: userWrap } = addUserBubble(text, null);
   showTyping();
 
   try {
@@ -979,9 +965,6 @@ async function sendChatMessage() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    slangEl.textContent = data.user_slang;
-    slangEl.classList.remove('loading');
-
     // 코칭 팁을 사용자 말풍선 바로 아래에 표시
     addCoachingRow(userWrap, data.ai_coaching);
 
@@ -993,8 +976,6 @@ async function sendChatMessage() {
 
     speakText(data.ai_slang);
   } catch (err) {
-    slangEl.textContent = text;
-    slangEl.classList.remove('loading');
     hideTyping();
     addAiBubble('⚠️ 오류가 발생했어요. 다시 시도해주세요.', '');
     console.error(err);
