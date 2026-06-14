@@ -146,6 +146,23 @@ const VOCAB_LABELS = {
   ru: '📖 Словарь',
 };
 
+// 피드백 카드 UI 레이블 (언어별)
+const FEEDBACK_LABELS = {
+  ko: { title: '대화 평가 결과', strengths: '✅ 잘한 점',         improvements: '💡 이렇게 해보세요' },
+  ja: { title: '会話評価結果',   strengths: '✅ 良かった点',       improvements: '💡 こうしてみましょう' },
+  en: { title: 'Conversation Review', strengths: '✅ What You Did Well', improvements: '💡 Try This Instead' },
+  zh: { title: '对话评价结果',   strengths: '✅ 做得好的地方',     improvements: '💡 这样试试' },
+  es: { title: 'Evaluación',    strengths: '✅ Lo que hiciste bien', improvements: '💡 Inténtalo así' },
+  fr: { title: 'Évaluation',    strengths: '✅ Ce que tu as bien fait', improvements: '💡 Essaie comme ça' },
+  de: { title: 'Gesprächsbewertung', strengths: '✅ Was gut war',  improvements: '💡 So geht\'s besser' },
+  pt: { title: 'Avaliação',     strengths: '✅ O que você fez bem', improvements: '💡 Tente assim' },
+  ru: { title: 'Оценка беседы', strengths: '✅ Что получилось',   improvements: '💡 Попробуйте так' },
+};
+
+function getFeedbackLabels() {
+  return FEEDBACK_LABELS[state.uiLang] || FEEDBACK_LABELS['ko'];
+}
+
 // 카테고리별 헤더 모드 텍스트
 const CATEGORY_MODE = {
   friend:   '캐주얼 AI',
@@ -307,10 +324,15 @@ document.getElementById('skip-mission').addEventListener('click', () => {
 async function startChatWithMission(mission) {
   state.currentMission = mission;
 
-  // 기본 인사 없이 채팅 화면만 먼저 표시 (타이핑 인디케이터로 대기)
   state.history = [];
   renderChatHeader();
+  updateMissionBanner();
   clearMessages();
+  // 이전 미션 종료로 비활성화됐을 수 있으므로 재활성화
+  chatInput.disabled     = false;
+  sendBtn.disabled       = false;
+  micBtn.disabled        = false;
+  endMissionBtn.disabled = false;
   resetSelectSteps();
   showScreen('chat');
   showTyping();
@@ -340,9 +362,15 @@ async function startChatWithMission(mission) {
 }
 
 function launchChat() {
-  state.history = [];
+  state.history      = [];
+  state.currentMission = null;
   renderChatHeader();
+  updateMissionBanner();
   clearMessages();
+  // 입력 재활성화 (이전 미션 종료로 비활성화됐을 수 있음)
+  chatInput.disabled = false;
+  sendBtn.disabled   = false;
+  micBtn.disabled    = false;
   addGreeting();
   showScreen('chat');
   resetSelectSteps();
@@ -370,9 +398,66 @@ document.querySelectorAll('.lang-tab').forEach(tab => {
   });
 });
 
-// 언어 변경 시 기존 AI 말풍선 해석 일괄 재번역
+// 언어 변경 시 기존 AI 말풍선 해석 + 코칭 팁 + 피드백 카드 일괄 재번역
 async function retranslateAll() {
-  const aiBubbles = document.querySelectorAll('.message.ai[data-slang]');
+  const aiBubbles    = document.querySelectorAll('.message.ai[data-slang]');
+  const coachingRows = document.querySelectorAll('.coaching-row[data-coaching]');
+  const feedbackCards = document.querySelectorAll('.feedback-card[data-feedback]');
+
+  // 피드백 카드 재번역
+  for (const cardEl of feedbackCards) {
+    let stored;
+    try { stored = JSON.parse(cardEl.dataset.feedback); } catch { continue; }
+
+    // 로딩 표시
+    const body = cardEl.querySelector('.feedback-body');
+    if (body) { body.style.opacity = '0.45'; body.style.pointerEvents = 'none'; }
+
+    try {
+      const res = await fetch('/api/translate-feedback', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ feedback: stored, ui_lang: state.uiLang }),
+      });
+      const translated = await res.json();
+      if (translated.error) throw new Error(translated.error);
+
+      // data-feedback을 번역본으로 갱신
+      cardEl.dataset.feedback = JSON.stringify(translated);
+
+      // 카드 본문 재렌더링
+      rerenderFeedbackBody(cardEl, translated);
+    } catch (e) {
+      console.error('feedback retranslate failed:', e);
+    } finally {
+      if (body) { body.style.opacity = ''; body.style.pointerEvents = ''; }
+    }
+  }
+
+  // 코칭 팁 재번역
+  for (const rowEl of coachingRows) {
+    const coaching = rowEl.dataset.coaching;
+    const tipEl    = rowEl.querySelector('.bubble-coaching-user');
+    if (tipEl) { tipEl.textContent = '💡 ...'; tipEl.style.opacity = '0.45'; }
+
+    try {
+      const res = await fetch('/api/translate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text: coaching, ui_lang: state.uiLang }),
+      });
+      const data = await res.json();
+      if (tipEl) {
+        tipEl.textContent = '💡 ' + (data.text || coaching);
+        tipEl.style.opacity = '';
+      }
+    } catch (e) {
+      if (tipEl) { tipEl.textContent = '💡 ' + coaching; tipEl.style.opacity = ''; }
+      console.error('coaching retranslate failed:', e);
+    }
+  }
+
+  // AI 말풍선 해석 재번역
   for (const msgEl of aiBubbles) {
     const slang    = msgEl.dataset.slang;
     const interpEl  = msgEl.querySelector('.bubble-interpretation');
@@ -400,6 +485,228 @@ async function retranslateAll() {
       console.error('retranslate failed:', e);
     }
   }
+}
+
+// ── 미션 배너 ──────────────────────────────
+const missionBanner      = document.getElementById('mission-banner');
+const missionBannerTitle = document.getElementById('mission-banner-title');
+const endMissionBtn      = document.getElementById('end-mission-btn');
+
+function updateMissionBanner() {
+  if (state.currentMission) {
+    missionBannerTitle.textContent = state.currentMission.title;
+    missionBanner.classList.remove('hidden');
+  } else {
+    missionBanner.classList.add('hidden');
+  }
+}
+
+endMissionBtn.addEventListener('click', endMission);
+
+async function endMission() {
+  if (endMissionBtn.disabled) return;
+  endMissionBtn.disabled = true;
+  chatInput.disabled     = true;
+  sendBtn.disabled       = true;
+  micBtn.disabled        = true;
+
+  showTyping();
+
+  try {
+    const res = await fetch('/api/mission-feedback', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        style:         state.style,
+        history:       state.history,
+        ui_lang:       state.uiLang,
+        mission_title: state.currentMission?.title || '',
+      }),
+    });
+    const data = await res.json();
+    hideTyping();
+    if (data.error) throw new Error(data.error);
+    addFeedbackCard(data);
+  } catch (e) {
+    hideTyping();
+    console.error('Mission feedback failed:', e);
+    showToast('평가를 불러오지 못했어요. 다시 시도해주세요.');
+    endMissionBtn.disabled = false;
+    chatInput.disabled     = false;
+    sendBtn.disabled       = false;
+    micBtn.disabled        = false;
+  }
+
+  missionBanner.classList.add('hidden');
+}
+
+function addFeedbackCard(data) {
+  const missionTitle = state.currentMission?.title || '';
+  // 미션 제목을 번역 가능하도록 JSON에 포함
+  const stored = { ...data, missionTitle };
+
+  const card = document.createElement('div');
+  card.className = 'feedback-card';
+  card.dataset.feedback = JSON.stringify(stored);
+
+  const lbl = getFeedbackLabels();
+
+  // 헤더
+  const header = document.createElement('div');
+  header.className = 'feedback-header';
+  const iconEl = document.createElement('span');
+  iconEl.className = 'feedback-header-icon';
+  iconEl.textContent = '📊';
+  const textWrap = document.createElement('div');
+  textWrap.className = 'feedback-header-text';
+  const titleEl = document.createElement('div');
+  titleEl.className = 'feedback-title';
+  titleEl.textContent = lbl.title;
+  const missionEl = document.createElement('div');
+  missionEl.className = 'feedback-mission';
+  missionEl.textContent = missionTitle;
+  textWrap.appendChild(titleEl);
+  textWrap.appendChild(missionEl);
+  header.appendChild(iconEl);
+  header.appendChild(textWrap);
+
+  // 본문
+  const body = document.createElement('div');
+  body.className = 'feedback-body';
+
+  if (data.strengths?.length) {
+    const sec = document.createElement('div');
+    const secTitle = document.createElement('div');
+    secTitle.className = 'feedback-section-title';
+    secTitle.textContent = lbl.strengths;
+    const list = document.createElement('div');
+    list.className = 'feedback-list';
+    data.strengths.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'feedback-item';
+      item.innerHTML = `<span class="feedback-item-dot">•</span><span>${s}</span>`;
+      list.appendChild(item);
+    });
+    sec.appendChild(secTitle);
+    sec.appendChild(list);
+    body.appendChild(sec);
+  }
+
+  if (data.improvements?.length) {
+    const sec = document.createElement('div');
+    const secTitle = document.createElement('div');
+    secTitle.className = 'feedback-section-title';
+    secTitle.textContent = lbl.improvements;
+    const list = document.createElement('div');
+    list.className = 'feedback-list';
+    data.improvements.forEach(imp => {
+      const item = document.createElement('div');
+      item.className = 'feedback-improvement';
+      const point = document.createElement('div');
+      point.className = 'imp-point';
+      point.textContent = imp.point;
+      item.appendChild(point);
+      if (imp.original || imp.better) {
+        const example = document.createElement('div');
+        example.className = 'imp-example';
+        example.innerHTML =
+          `<span class="orig">${imp.original || ''}</span>` +
+          `<span class="arrow"> → </span>` +
+          `<span class="better">${imp.better || ''}</span>`;
+        item.appendChild(example);
+      }
+      list.appendChild(item);
+    });
+    sec.appendChild(secTitle);
+    sec.appendChild(list);
+    body.appendChild(sec);
+  }
+
+  if (data.encouragement) {
+    const enc = document.createElement('div');
+    enc.className = 'feedback-encouragement';
+    enc.textContent = '🌟 ' + data.encouragement;
+    body.appendChild(enc);
+  }
+
+  card.appendChild(header);
+  card.appendChild(body);
+  chatMessages.insertBefore(card, typingEl);
+  scrollToBottom();
+}
+
+// 피드백 카드 본문만 교체 (헤더는 유지)
+function rerenderFeedbackBody(cardEl, data) {
+  const lbl = getFeedbackLabels();
+
+  // 헤더 텍스트도 갱신 (제목 + 미션 제목)
+  const titleEl   = cardEl.querySelector('.feedback-title');
+  const missionEl = cardEl.querySelector('.feedback-mission');
+  if (titleEl)   titleEl.textContent   = lbl.title;
+  if (missionEl) missionEl.textContent = data.missionTitle || '';
+
+  const oldBody = cardEl.querySelector('.feedback-body');
+  if (!oldBody) return;
+
+  const body = document.createElement('div');
+  body.className = 'feedback-body';
+
+  if (data.strengths?.length) {
+    const sec = document.createElement('div');
+    const secTitle = document.createElement('div');
+    secTitle.className = 'feedback-section-title';
+    secTitle.textContent = lbl.strengths;
+    const list = document.createElement('div');
+    list.className = 'feedback-list';
+    data.strengths.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'feedback-item';
+      item.innerHTML = `<span class="feedback-item-dot">•</span><span>${s}</span>`;
+      list.appendChild(item);
+    });
+    sec.appendChild(secTitle);
+    sec.appendChild(list);
+    body.appendChild(sec);
+  }
+
+  if (data.improvements?.length) {
+    const sec = document.createElement('div');
+    const secTitle = document.createElement('div');
+    secTitle.className = 'feedback-section-title';
+    secTitle.textContent = lbl.improvements;
+    const list = document.createElement('div');
+    list.className = 'feedback-list';
+    data.improvements.forEach(imp => {
+      const item = document.createElement('div');
+      item.className = 'feedback-improvement';
+      const point = document.createElement('div');
+      point.className = 'imp-point';
+      point.textContent = imp.point;
+      item.appendChild(point);
+      if (imp.original || imp.better) {
+        const example = document.createElement('div');
+        example.className = 'imp-example';
+        example.innerHTML =
+          `<span class="orig">${imp.original || ''}</span>` +
+          `<span class="arrow"> → </span>` +
+          `<span class="better">${imp.better || ''}</span>`;
+        item.appendChild(example);
+      }
+      list.appendChild(item);
+    });
+    sec.appendChild(secTitle);
+    sec.appendChild(list);
+    body.appendChild(sec);
+  }
+
+  if (data.encouragement) {
+    const enc = document.createElement('div');
+    enc.className = 'feedback-encouragement';
+    enc.textContent = '🌟 ' + data.encouragement;
+    body.appendChild(enc);
+  }
+
+  cardEl.replaceChild(body, oldBody);
 }
 
 // ── Header rendering ───────────────────────────
@@ -508,6 +815,7 @@ function addCoachingRow(afterEl, coaching) {
   if (!coaching) return;
   const row = document.createElement('div');
   row.className = 'coaching-row';
+  row.dataset.coaching = coaching;
   const tip = document.createElement('div');
   tip.className = 'bubble-coaching-user';
   tip.textContent = '💡 ' + coaching;

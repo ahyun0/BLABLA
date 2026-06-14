@@ -8,6 +8,7 @@ import base64
 import tempfile
 import time
 import requests
+import json
 
 load_dotenv()
 
@@ -23,6 +24,8 @@ def get_whisper_model():
         _whisper_model = whisper.load_model("turbo")
         print("Whisper 로드 완료")
     return _whisper_model
+
+get_whisper_model()  # 서버 시작 시 즉시 로드
 
 _openai_key = os.getenv('OPENAI_API_KEY')
 openai_client = openai.OpenAI(api_key=_openai_key) if _openai_key else None
@@ -52,15 +55,34 @@ CATEGORY_VOCAB_LABEL = {
     'travel':   'travel phrases',
 }
 
+# 🎯 코칭 예시 문구 (언어별)
+COACHING_EXAMPLES = {
+    'ko': '"~라고 하면 더 자연스러워요" or "~표현이 더 적절해요"',
+    'ja': '"~と言うとより自然です" or "~という表現がより適切です"',
+    'en': '"Saying ~ sounds more natural" or "~ is a more appropriate expression"',
+    'zh': '"说~更自然" or "~的表达更合适"',
+    'es': '"Decir ~ suena más natural" or "~ es una expresión más apropiada"',
+    'fr': '"Dire ~ est plus naturel" or "~ est une expression plus appropriée"',
+    'de': '"~ klingt natürlicher" or "~ ist ein passenderer Ausdruck"',
+    'pt': '"Dizer ~ soa mais natural" or "~ é uma expressão mais apropriada"',
+    'ru': '"Сказать ~ звучит более естественно" or "~ — более подходящее выражение"',
+    'vi': '"Nói ~ tự nhiên hơn" or "~ là cách diễn đạt phù hợp hơn"',
+    'th': '"พูดว่า~ ฟังดูเป็นธรรมชาติกว่า" or "~ เป็นสำนวนที่เหมาะสมกว่า"',
+    'ar': '"قول ~ يبدو أكثر طبيعية" or "~ تعبير أكثر ملاءمة"',
+}
+
 PROMPTS = {
     # ══ 한국어 ════════════════════════════════════
     'ko_friend': {
         'chat': """너는 수현이야. 한국 MZ/인터넷 밈 말투를 쓰는 친구 같은 AI야.
 킹받네, 폼 미쳤다, 개웃김, 현타, 억까, 찐, 레전드, 갓생, ㄹㅇ, 극공감, 각이다 같은 표현을 자연스럽게 써.
 친한 친구한테 카톡 보내듯 캐주얼하게 대화해.""",
-        'translate': """다음 문장을 한국 MZ/인터넷 밈 말투로만 변환해줘.
-킹받네, 폼 미쳤다, 개웃김, 찐, 레전드, ㄹㅇ, 각이다 같은 표현을 써.
-변환된 MZ체 문장만 출력해. 설명, 라벨, 기타 텍스트는 절대 포함하지 마."""
+        'translate': """다음 문장을 한국 MZ 말투로 자연스럽게 변환해줘.
+규칙:
+- MZ 슬랭은 1~2개만, 문맥에 딱 맞는 것만 사용해
+- 원문 길이에 비례하게, 짧은 입력은 짧게 변환해
+- 슬랭을 억지로 여러 개 끼워 넣지 마 — 과장하지 말고 자연스럽게
+- 변환된 문장만 출력해. 설명, 라벨, 기타 텍스트는 절대 포함하지 마."""
     },
     'ko_business': {
         'chat': """너는 준서야. 한국 직장에서 자연스럽게 쓰이는 비즈니스 말투로 대화하는 AI야.
@@ -82,9 +104,12 @@ PROMPTS = {
         'chat': """あなたはゆいです。日本のギャル語で話すAIです。
 マジ、やばい、〜じゃん、ウケる、無理無理、あげ、まじ卍、ちょー、めっちゃ などのギャル表現を自然に使ってください。
 ハイテンションで明るく可愛い話し方で会話してください。""",
-        'translate': """다음 문장을 일본 갸루체로만 변환해줘.
-マジ、やばい、〜じゃん、ウケる、めっちゃ 같은 갸루 표현을 사용해.
-변환된 갸루체 문장만 출력해. 설명, 라벨, 기타 텍스트는 절대 포함하지 마."""
+        'translate': """다음 문장을 일본 갸루체로 자연스럽게 변환해줘.
+규칙:
+- 갸루 표현은 1~2개만, 문맥에 자연스러운 것만 사용해
+- 원문 길이에 비례하게, 짧은 입력은 짧게 변환해
+- 억지로 여러 표현을 끼워 넣지 마 — 과장하지 말고 자연스럽게
+- 변환된 문장만 출력해. 설명, 라벨, 기타 텍스트는 절대 포함하지 마."""
     },
     'ja_business': {
         'chat': """あなたはケンジです。自然なビジネス敬語で話すAIです。
@@ -106,9 +131,12 @@ PROMPTS = {
         'chat': """You are Tyler, a chill Gen Z American AI. Always respond in casual American slang.
 Use: no cap, lowkey, highkey, slay, vibe, bet, fr, rizz, ate, bussin, it's giving, understood the assignment, periodt.
 Keep it fun, casual, and positive.""",
-        'translate': """Convert the following text into casual American Gen Z slang only.
-Use expressions like: no cap, lowkey, slay, vibe, bet, fr, rizz, ate, bussin.
-Output ONLY the converted slang sentence. No labels, no explanations, no other text."""
+        'translate': """Convert the following text into casual American Gen Z slang naturally.
+Rules:
+- Use only 1-2 slang terms that genuinely fit the context
+- Keep the length proportional to the original — short input stays short
+- Do NOT cram multiple slang words together — keep it natural, not exaggerated
+- Output ONLY the converted sentence. No labels, no explanations, no other text."""
     },
     'en_us_business': {
         'chat': """You are Alex, an AI using natural American professional English.
@@ -134,8 +162,12 @@ Output ONLY the converted sentence. No labels, no explanations."""
         'chat': """你是小美，一个使用中国网络用语的AI朋友。
 自然地使用中国年轻人的流行语：yyds（永远的神）、绝绝子、芭比Q了、破防了、整活、摆烂、内卷、狠狠地、好家伙、冲冲冲。
 就像中国年轻人发微博、微信时的语气，活泼有趣有梗。""",
-        'translate': """将以下文字转换成中国网络流行语风格。
-使用 yyds、绝绝子、芭比Q了、破防了 等表达。只输出转换后的句子，不要包含任何说明或标签。"""
+        'translate': """将以下文字自然地转换成中国网络流行语风格。
+规则：
+- 只使用1~2个最贴切的网络用语，不要堆砌多个
+- 输出长度与原文保持相近，短句保持简短
+- 不要过度夸张，保持自然
+- 只输出转换后的句子，不要包含任何说明或标签。"""
     },
     'zh_business': {
         'chat': """你是明浩，一个使用中国职场商务语言的AI。
@@ -159,6 +191,7 @@ def _build_chat_prompt(style, ui_lang, mission_prompt=''):
     base = PROMPTS[style]['chat']
     category = style.split('_')[-1]
     vocab_label = CATEGORY_VOCAB_LABEL.get(category, 'expressions')
+    coaching_examples = COACHING_EXAMPLES.get(ui_lang, COACHING_EXAMPLES['en'])
 
     scenario_block = ''
     if mission_prompt:
@@ -171,15 +204,23 @@ MANDATORY FORMAT — append to EVERY reply without exception:
 💬 <translate your reply above into {lang_name}, verbatim sentence by sentence>
 
 📖
-<actual term from your reply> = <its meaning in {lang_name}>
-<actual term from your reply> = <its meaning in {lang_name}>
-(up to 4 {vocab_label}; use real words/phrases from your reply, not placeholders)
+<actual term from your reply> = <its meaning written ONLY in {lang_name}>
+<actual term from your reply> = <its meaning written ONLY in {lang_name}>
+(up to 4 {vocab_label}; use real words/phrases from your reply, not placeholders; meanings MUST be in {lang_name})
 
-🎯 <in {lang_name}: a short, gentle feedback on the USER's input — suggest a more natural/appropriate expression with a concrete example. Use phrases like "~라고 하면 더 자연스러워요" or "~표현이 더 적절해요". Keep it encouraging and brief.>
+🎯 <Focus ONLY on whether the user's words and expressions are natural in this context.
+- If a word or phrase sounds unnatural or awkward: quote it, then suggest a more natural alternative in 「」.
+- If the user's expression is already natural: briefly praise that specific word or phrase.
+- NEVER give feedback on: capitalization, punctuation, spelling, formatting, or grammar mechanics.
+- NEVER comment on the situation, topic, or scenario — only the naturalness of the actual words used.
+- Write the explanation in {lang_name}. Quoted expressions stay in the target language.
+- Use phrases like {coaching_examples}. Keep it to 1-2 sentences max.>
 
 Rules:
 - All four sections (reply, 💬, 📖, 🎯) required every time
-- 🎯 is about the USER's message, not yours — and must be last"""
+- 🎯 is about the USER's specific word/expression choices only — must be last
+- 📖 meanings MUST be in {lang_name} only
+- 🎯 explanation text MUST be in {lang_name} — only the quoted example expressions may be in the target language"""
 
 
 # 각 스타일별 Typecast 보이스 설정
@@ -359,14 +400,15 @@ def interpret():
 Rules:
 - Word-for-word translation, preserve every sentence
 - Do NOT summarize or paraphrase
+- In the 📖 section: the LEFT side (term) stays in the original language; the RIGHT side (meaning) MUST be written ONLY in {lang_name} — never in any other language
 - Use this exact output format:
 
 💬 [plain {lang_name} translation]
 
 📖
-expression1 = meaning in {lang_name}
-expression2 = meaning in {lang_name}
-(only terms actually in the text, max 4, one per line)
+expression1 = meaning written in {lang_name}
+expression2 = meaning written in {lang_name}
+(only terms actually in the text, max 4, one per line; meanings MUST be in {lang_name})
 
 Text:
 {text}"""
@@ -459,6 +501,135 @@ IMPORTANT: This is the START of the conversation.
             'ai_interpretation': ai_interpretation,
             'ai_vocab':          ai_vocab,
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/mission-feedback', methods=['POST'])
+def mission_feedback():
+    data          = request.json
+    history       = data.get('history', [])
+    style         = data.get('style', DEFAULT_STYLE)
+    ui_lang       = data.get('ui_lang', 'ko')
+    mission_title = data.get('mission_title', '')
+    lang_name     = LANG_NAMES.get(ui_lang, 'English')
+
+    user_messages = [m['content'] for m in history if m['role'] == 'user']
+    if not user_messages:
+        return jsonify({'error': 'No user messages to evaluate'}), 400
+
+    # 타겟 언어 추출 (ko_friend → ko)
+    lang_key    = style.rsplit('_', 1)[0] if '_' in style else style
+    target_lang = LANG_NAMES.get(lang_key, 'English')
+    category    = style.split('_')[-1]
+    vocab_label = CATEGORY_VOCAB_LABEL.get(category, 'expressions')
+
+    convo_text = '\n'.join(
+        f"{'[User]' if m['role'] == 'user' else '[AI]'}: {m['content']}"
+        for m in history
+    )
+
+    prompt = f"""You are an encouraging language coach reviewing a student's {target_lang} conversation practice.
+
+Mission: "{mission_title}"
+Focus area: {vocab_label}
+
+Conversation transcript:
+{convo_text}
+
+Evaluate ONLY the [User]'s messages.
+Return ONLY a valid JSON object with exactly this structure — no markdown, no extra text:
+{{
+  "strengths": ["<strength>", "<strength>"],
+  "improvements": [
+    {{
+      "point": "<issue description>",
+      "original": "<user's actual phrase>",
+      "better": "<better {target_lang} alternative>"
+    }}
+  ],
+  "encouragement": "<closing message>"
+}}
+
+CRITICAL LANGUAGE RULES — follow exactly:
+- "strengths" items: write ENTIRELY in {lang_name}. ZERO words from {target_lang} or any other language.
+- "improvements[].point": write ENTIRELY in {lang_name}. ZERO mixing.
+- "improvements[].original": keep in the original language the user typed it in.
+- "improvements[].better": write in {target_lang} only.
+- "encouragement": write ENTIRELY in {lang_name}. ZERO words from {target_lang} or any other language.
+- If you want to reference a target-language expression inside strengths/point/encouragement, wrap it in 「」 but keep all surrounding text in {lang_name}.
+
+Content rules:
+- strengths: 1-2 items — cite the EXACT word or phrase the user typed (in 「」) and explain WHY it was correct or natural. NO vague emotional praise like "showed confidence" or "great attitude". Concrete only.
+- improvements: 1-3 items; only include real issues
+- encouragement: 1-2 sentences, warm and motivating"""
+
+    try:
+        raw = _gpt_chat(
+            messages=[{'role': 'user', 'content': prompt}],
+            temperature=0.4,
+            max_tokens=600,
+        )
+        clean = raw.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip()
+        feedback = json.loads(clean)
+        return jsonify(feedback)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/translate-feedback', methods=['POST'])
+def translate_feedback():
+    data      = request.json
+    feedback  = data.get('feedback', {})
+    ui_lang   = data.get('ui_lang', 'ko')
+    lang_name = LANG_NAMES.get(ui_lang, 'English')
+
+    prompt = f"""Translate the language learning feedback below into {lang_name}.
+Return ONLY valid JSON with the same structure — no markdown, no extra text.
+
+CRITICAL rules:
+- Translate ENTIRELY into {lang_name}: "missionTitle", "strengths" items, "improvements[].point", "encouragement"
+- These fields must contain ZERO words from any other language — pure {lang_name} only
+- Exception: expressions inside 「」 may stay in their original language; keep all surrounding text in {lang_name}
+- Do NOT translate at all: "improvements[].original", "improvements[].better" — copy them verbatim
+
+Input:
+{json.dumps(feedback, ensure_ascii=False)}"""
+
+    try:
+        raw   = _gpt_chat(
+            messages=[{'role': 'user', 'content': prompt}],
+            temperature=0.2,
+            max_tokens=600,
+        )
+        clean = raw.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip()
+        return jsonify(json.loads(clean))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/translate', methods=['POST'])
+def translate():
+    data = request.json
+    text = data.get('text', '')
+    ui_lang = data.get('ui_lang', 'ko')
+    lang_name = LANG_NAMES.get(ui_lang, 'English')
+
+    prompt = f"""Translate the following coaching feedback into {lang_name}.
+Critical rules:
+- Translate ONLY the surrounding explanation text into {lang_name}
+- NEVER translate expressions inside 「」 or quotation marks — keep them EXACTLY as-is in their original language
+- Output ONLY the translated result. No labels, no extra text.
+
+Text: {text}"""
+
+    try:
+        raw = _gpt_chat(
+            messages=[{'role': 'user', 'content': prompt}],
+            temperature=0.2,
+            max_tokens=200,
+        )
+        return jsonify({'text': raw.strip()})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
